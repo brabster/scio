@@ -20,7 +20,7 @@ package org.apache.beam.sdk.io.gcp.bigquery;
 import com.google.api.services.bigquery.model.Table;
 import com.google.api.services.bigquery.model.TableReference;
 import com.google.api.services.bigquery.model.TableRow;
-import com.google.api.services.bigquery.model.TableSchema;
+import com.google.common.collect.Lists;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo;
@@ -57,8 +57,17 @@ public class BigQueryServicesWrapper {
                 GlobalWindow.INSTANCE,
                 PaneInfo.NO_FIRING))
         .collect(Collectors.toList());
+    List<ValueInSingleWindow<TableRow>> failedInserts = Lists.newArrayList();
     return bqServices.getDatasetService(bqOptions)
-        .insertAll(ref, rows, null, InsertRetryPolicy.alwaysRetry(), null);
+        .insertAll(
+                ref,
+                rows,
+                null,
+                InsertRetryPolicy.alwaysRetry(),
+                failedInserts,
+                ErrorContainer.TABLE_ROW_ERROR_CONTAINER,
+                false,
+                false);
   }
 
 }

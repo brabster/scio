@@ -64,7 +64,7 @@ val slf4jVersion = "1.7.25"
 val sparkeyVersion = "2.3.0"
 val tensorFlowVersion = "1.8.0"
 val zoltarVersion = "0.4.0"
-val grpcVersion = "1.7.0"
+val grpcVersion = "1.13.1"
 val caseappVersion = "2.0.0-M3"
 
 lazy val mimaSettings = Seq(
@@ -81,9 +81,7 @@ val beamSDKIO =
   Seq(
     "org.apache.beam" % "beam-sdks-java-io-google-cloud-platform" % beamVersion excludeAll(
         ExclusionRule("com.google.cloud", "google-cloud-spanner"),
-        ExclusionRule("com.google.cloud", "google-cloud-core"),
-        ExclusionRule("com.google.api.grpc", "proto-google-cloud-spanner-admin-database-v1"),
-        ExclusionRule("com.google.api.grpc", "proto-google-common-protos")
+        ExclusionRule("com.google.api.grpc", "proto-google-cloud-spanner-admin-database-v1")
       ),
     "io.grpc"  % "grpc-core" % grpcVersion,
     "io.grpc"  % "grpc-context" % grpcVersion,
