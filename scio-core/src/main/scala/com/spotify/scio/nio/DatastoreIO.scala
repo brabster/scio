@@ -25,11 +25,9 @@ import org.apache.beam.sdk.io.gcp.datastore.{DatastoreIO => BDatastoreIO}
 
 import scala.concurrent.Future
 
-case class DatastoreIO(projectId: String) extends ScioIO[Entity] {
+final case class DatastoreIO(projectId: String) extends ScioIO[Entity] {
 
-  case class ReadParams(query: Query, namespace: String = null)
-
-  type ReadP = ReadParams
+  type ReadP = DatastoreIO.ReadParam
   type WriteP = Unit
 
   override def id: String = projectId
@@ -47,7 +45,11 @@ case class DatastoreIO(projectId: String) extends ScioIO[Entity] {
     Future.failed(new NotImplementedError("Datastore future not implemented"))
   }
 
-  override def tap(params: ReadParams): Tap[Entity] =
+  override def tap(params: ReadP): Tap[Entity] =
     throw new NotImplementedError("Datastore tap not implemented")
 
+}
+
+object DatastoreIO {
+  final case class ReadParam(query: Query, namespace: String = null)
 }
