@@ -29,7 +29,7 @@ import scala.reflect.ClassTag
 import scala.reflect.runtime.universe._
 import scala.language.implicitConversions
 
-/** Tap for BigQuery TableRow JSON files on local file system or GCS. */
+/** Tap for BigQuery TableRow JSON files. */
 final case class TableRowJsonTap(path: String) extends Tap[TableRow] {
   override def value: Iterator[TableRow] = FileStorage(path).tableRowJsonFile
   override def open(sc: ScioContext): SCollection[TableRow] = sc.tableRowJsonFile(path)
@@ -41,7 +41,7 @@ final case class BigQueryTap(table: TableReference) extends Tap[TableRow] {
   override def open(sc: ScioContext): SCollection[TableRow] = sc.bigQueryTable(table)
 }
 
-final case class BigQueryTaps[T <: Taps](self: T) {
+final case class BigQueryTaps(self: Taps) {
   import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers
   import com.spotify.scio.bigquery.types.BigQueryType
   import com.spotify.scio.bigquery.types.BigQueryType.HasAnnotation
@@ -55,7 +55,7 @@ final case class BigQueryTaps[T <: Taps](self: T) {
     mkTap(
       s"BigQuery SELECT: $sqlQuery",
       () => isQueryDone(sqlQuery),
-      () => nio.Select(sqlQuery).tap(nio.Select.FlattenResults(flattenResults)))
+      () => nio.Select(sqlQuery).tap(nio.Select.ReadParam(flattenResults)))
 
   /** Get a `Future[Tap[TableRow]]` for BigQuery table. */
   def bigQueryTable(table: TableReference): Future[Tap[TableRow]] =
@@ -101,6 +101,6 @@ final case class BigQueryTaps[T <: Taps](self: T) {
 }
 
 object BigQueryTaps {
-  implicit def toBigQueryTaps[T <: Taps](underlying: T): BigQueryTaps[T] =
+  implicit def toBigQueryTaps(underlying: Taps): BigQueryTaps =
     BigQueryTaps(underlying)
 }

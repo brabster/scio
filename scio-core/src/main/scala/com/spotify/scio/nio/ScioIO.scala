@@ -80,10 +80,17 @@ object ScioIO {
   // scalastyle:on structural.type
 }
 
-case class CustomIO[T](id: String) extends ScioIO[T] {
+/** Base trait for [[ScioIO]] without business logic, for stubbing mock data with `JobTest`. */
+trait TestIO[T] extends ScioIO[T] {
   override type ReadP = Nothing
   override type WriteP = Nothing
-  override def read(sc: ScioContext, params: ReadP): SCollection[T] = ???
-  override def write(data: SCollection[T], params: WriteP): Future[Tap[T]] = ???
-  override def tap(params: ReadP): Tap[T] = ???
+
+  override def read(sc: ScioContext, params: ReadP): SCollection[T] =
+    throw new IllegalStateException(s"$this is for testing purpose only")
+  override def write(data: SCollection[T], params: WriteP): Future[Tap[T]] =
+    throw new IllegalStateException(s"$this is for testing purpose only")
+  override def tap(params: ReadP): Tap[T] =
+    throw new IllegalStateException(s"$this is for testing purpose only")
 }
+
+case class CustomIO[T](id: String) extends TestIO[T]
