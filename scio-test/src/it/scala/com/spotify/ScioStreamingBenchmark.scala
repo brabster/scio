@@ -26,7 +26,6 @@ import com.google.api.services.dataflow.Dataflow
 import com.google.api.services.dataflow.model.Job
 import com.google.common.reflect.ClassPath
 import com.spotify.scio._
-import com.spotify.scio.runners.dataflow.DataflowResult
 import org.apache.beam.sdk.io.GenerateSequence
 import org.apache.beam.sdk.options.StreamingOptions
 import org.joda.time._
@@ -37,27 +36,14 @@ import scala.concurrent.duration.Duration
 
 
 object ScioStreamingBenchmark {
+  import ScioBenchmarkSettings._
 
-  object Settings {
-    val defaultProjectId: String = "data-integration-test"
-    val numOfWorkers = 4
-    val commonArgs = Array(
-      "--runner=DataflowRunner",
-      s"--numWorkers=$numOfWorkers",
-      "--workerMachineType=n1-highmem-8",
-      "--autoscalingAlgorithm=NONE")
-
-    val shuffleConf = Map("ShuffleService" -> Array("--experiments=shuffle_mode=service"))
-
-    val dataflow: Dataflow = {
-      val transport = GoogleNetHttpTransport.newTrustedTransport()
-      val jackson = JacksonFactory.getDefaultInstance
-      val credential = GoogleCredential.getApplicationDefault
-      new Dataflow.Builder(transport, jackson, credential).build()
-    }
+  private val dataflow: Dataflow = {
+    val transport = GoogleNetHttpTransport.newTrustedTransport()
+    val jackson = JacksonFactory.getDefaultInstance
+    val credential = GoogleCredential.getApplicationDefault
+    new Dataflow.Builder(transport, jackson, credential).build()
   }
-
-  private val executor = new ScheduledThreadPoolExecutor(1)
 
   private val benchmarks = ClassPath.from(Thread.currentThread().getContextClassLoader)
     .getAllClasses
@@ -76,7 +62,7 @@ object ScioStreamingBenchmark {
     val argz = Args(args)
     val name = argz("name")
     val regex = argz.getOrElse("regex", ".*")
-    val projectId = argz.getOrElse("project", Settings.defaultProjectId)
+    val projectId = argz.getOrElse("project", defaultProjectId)
     val timestamp = DateTimeFormat.forPattern("yyyyMMddHHmmss")
       .withZone(DateTimeZone.UTC)
       .print(System.currentTimeMillis())
@@ -86,12 +72,17 @@ object ScioStreamingBenchmark {
 
     val scioResults = benchmarks
       .filter(_.name.matches(regex))
-      .map(_.run(projectId, prefix, Settings.commonArgs))
+      .map(_.run(projectId, prefix, commonArgs))
 
-    executor.scheduleAtFixedRate(
-      () => scioResults.foreach { case (jobName, result) => pollMetrics(jobName, result) },
+    new ScheduledThreadPoolExecutor(1).scheduleAtFixedRate(
+      () => {
+        val benchmarks = scioResults.map { case (benchmark, result) =>
+          BenchmarkResult.streaming(benchmark, result) }
+
+        DatastoreLogger(circleCIEnv).log(benchmarks)
+      },
       1,
-      60,
+      1,
       TimeUnit.MINUTES)
 
     scioResults.foreach(result => result._2.waitUntilFinish(Duration(1, TimeUnit.DAYS)))
@@ -101,7 +92,7 @@ object ScioStreamingBenchmark {
 
   /** Cancel any currently running streaming benchmarks before spawning new ones */
   private def cancelCurrentJobs(projectId: String): Unit = {
-    val jobs = Settings.dataflow.projects().jobs()
+    val jobs = dataflow.projects().jobs()
 
     Option(jobs.list(projectId).setFilter("ACTIVE").execute().getJobs).foreach { activeJobs =>
       activeJobs.asScala.foreach { job =>
@@ -115,25 +106,6 @@ object ScioStreamingBenchmark {
           ).execute()
         }
       }
-    }
-  }
-
-  // @Todo write to DataStore etc
-  private def pollMetrics(benchmark: String, result: ScioResult): Unit = {
-    PrettyPrint.print("PollMetrics", s"polling metrics for " + benchmark)
-
-    try {
-      result.as[DataflowResult]
-        .getJobMetrics.getMetrics.asScala
-        .filter { metric =>
-          val name = metric.getName.getName
-          name.startsWith("Total") || name.startsWith("Current")
-        }.foreach { metric =>
-          PrettyPrint.print(benchmark, s"${metric.getName.getName} -> ${metric.getScalar}")
-        }
-    } catch {
-      case e: Exception =>
-        PrettyPrint.print("PollMetrics", s"caught exception polling for metrics: $e")
     }
   }
 
